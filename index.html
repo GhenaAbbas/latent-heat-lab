@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Latent Heat Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: controls on top; the container, the particle view and the readings side by side; the results table below. Stacks on phones. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --fg: #1b2733;
+  --muted: #5d6b78;
+  --line: #d9dee4;
+  --accent: #6b2fa0;          /* the deck's purple */
+  --heat: #d64545;            /* add heat */
+  --cool: #2479b9;            /* remove heat */
+  --glass: #8a96a2;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171d; --surface: #1a2129; --fg: #e8edf2; --muted: #9aa7b3; --line: #2c3742;
+    --accent: #b98be6; --heat: #f06a6a; --cool: #5aa9e6; --glass: #6f7d8a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171d; --surface: #1a2129; --fg: #e8edf2; --muted: #9aa7b3; --line: #2c3742;
+  --accent: #b98be6; --heat: #f06a6a; --cool: #5aa9e6; --glass: #6f7d8a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { color-scheme: light; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 28px; display: grid; gap: 14px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; }
+h1 { font-size: 1.6rem; margin: 0; color: var(--accent); }
+.sub { margin: 0; color: var(--muted); max-width: 64ch; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; align-content: start; }
+.box h2 { margin: 0; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.controls { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
+@media (max-width: 900px) { .controls { grid-template-columns: minmax(0, 1fr); } }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; align-content: flex-start; }
+button { font: inherit; cursor: pointer; }
+.pick { border: 1.5px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 7px 14px; font-size: 1rem; }
+.pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--surface); font-weight: 700; }
+.act { border: 0; border-radius: 10px; padding: 10px 18px; font-size: 1.05rem; font-weight: 700; color: #fff; min-width: 9.5rem; }
+.act.add { background: var(--heat); }
+.act.remove { background: var(--cool); }
+.act.reset { background: transparent; color: var(--fg); border: 1.5px solid var(--line); min-width: 0; font-weight: 400; }
+.act[aria-pressed="true"] { outline: 3px solid var(--fg); outline-offset: 2px; }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+@media (max-width: 900px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.box svg { display: block; width: 100%; height: auto; max-height: 360px; }
+.read { display: grid; gap: 4px; }
+.row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); padding: 5px 0; }
+.row span:first-child { color: var(--muted); }
+.row span:last-child { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; }
+.heatbox { margin-top: 8px; border: 2px solid var(--accent); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.heatbox .lbl { color: var(--accent); font-weight: 700; }
+.heatbox .val { font-family: var(--font-num); font-size: 1.9rem; font-variant-numeric: tabular-nums; }
+.status { margin: 6px 0 0; color: var(--fg); font-weight: 700; min-height: 2.9em; }
+table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+th.num { text-align: right; }
+td.barcell { width: 40%; }
+.bar { height: 14px; border-radius: 4px; background: var(--accent); min-width: 2px; }
+.bar.rel { background: var(--cool); }
+.empty { color: var(--muted); margin: 0; }
+.tablewrap { overflow-x: auto; }
+.small { border: 1.5px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 4px 10px; font-size: 0.9rem; justify-self: start; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Latent Heat Lab</h1>
+    <p class="sub">A sealed container holds 1 kg of a substance at its melting point or its boiling point. Add heat or remove heat and read the heat counter.</p>
+  </header>
+
+  <div class="controls">
+    <section class="box" aria-labelledby="h-sub">
+      <h2 id="h-sub">Substance</h2>
+      <div class="btns" id="subs"></div>
+    </section>
+    <section class="box" aria-labelledby="h-proc">
+      <h2 id="h-proc">Process</h2>
+      <div class="btns" id="procs"></div>
+    </section>
+    <section class="box" aria-labelledby="h-act">
+      <h2 id="h-act">Heat</h2>
+      <div class="btns">
+        <button class="act add" id="btn-add" aria-pressed="false">Add heat</button>
+        <button class="act remove" id="btn-remove" aria-pressed="false">Remove heat</button>
+        <button class="act reset" id="btn-reset">Reset</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="bench">
+    <section class="box" aria-labelledby="h-cont">
+      <h2 id="h-cont">Container (1 kg)</h2>
+      <svg id="cont" viewBox="0 0 300 300" role="img" aria-label="Sealed container with the substance, a thermometer and a heater"></svg>
+    </section>
+    <section class="box" aria-labelledby="h-part">
+      <h2 id="h-part">Particle view</h2>
+      <svg id="part" viewBox="0 0 300 300" role="img" aria-label="Zoomed-in view of the particles and the bonds between them"></svg>
+    </section>
+    <section class="box" aria-labelledby="h-read">
+      <h2 id="h-read">Readings</h2>
+      <div class="read">
+        <div class="row"><span>Substance</span><span id="r-sub"></span></div>
+        <div class="row"><span>Mass</span><span>1 kg</span></div>
+        <div class="row"><span>Temperature</span><span id="r-temp"></span></div>
+        <div class="row"><span>State</span><span id="r-state"></span></div>
+      </div>
+      <div class="heatbox">
+        <span class="lbl" id="r-heatlbl">Heat absorbed</span>
+        <span class="val" id="r-heat">0 J</span>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <section class="box" aria-labelledby="h-res">
+    <h2 id="h-res">Your results (1 kg)</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Substance</th><th>Process</th><th class="num">Heat (J)</th><th></th></tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="empty">A row appears here each time a whole process is finished.</p>
+    <button class="small" id="btn-clear">Clear results</button>
+  </section>
+</div>
+
+<script>
+// Data: Obelas Table (lesson table); copper boiling point corrected to 2560 °C (teacher, 2026-10-05).
+const SUBS = {
+  water:   { name: "Water",   mp: 0,    bp: 100,  Lf: 333000, Lv: 2260000, col: "#3d8fd6", solidCol: "#cfe8fa", liqCol: "#7fb9ea", words: ["ice", "water", "steam"] },
+  ethanol: { name: "Ethanol", mp: -114, bp: 78,   Lf: 104000, Lv: 854000,  col: "#c99a1c", solidCol: "#f3e7c2", liqCol: "#ead9a0" },
+  mercury: { name: "Mercury", mp: -39,  bp: 357,  Lf: 11400,  Lv: 296000,  col: "#7d8790", solidCol: "#d3d8dc", liqCol: "#aab3ba" },
+  lead:    { name: "Lead",    mp: 327,  bp: 1750, Lf: 24500,  Lv: 870000,  col: "#5b6670", solidCol: "#9aa4ad", liqCol: "#c0c8cf" },
+  copper:  { name: "Copper",  mp: 1083, bp: 2560, Lf: 134000, Lv: 5060000, col: "#c06a2b", solidCol: "#d98a52", liqCol: "#f0a35e" },
+};
+const PROCS = { fus: "Melting / Freezing", vap: "Boiling / Condensing" };
+const N = 30, R = 8, S = 30;                      // particles, radius, lattice spacing (px)
+const CX = 150, CY = 150, RC = 132;                // particle-view circle
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const temp = t => (t < 0 ? "−" + Math.abs(t) : String(t)) + " °C";
+const $ = id => document.getElementById(id);
+
+let sub = "water", proc = "fus", running = null, results = [];
+const store = {};                                  // per substance+process: f (0 = start state, 1 = finished), fStart, dir
+function st() { const k = sub + "|" + proc; return store[k] || (store[k] = { f: 0, fStart: 0, dir: null }); }
+function L() { return proc === "fus" ? SUBS[sub].Lf : SUBS[sub].Lv; }
+function duration() { return 2.5 + 1.5 * Math.log10(L() / 10000); }   // seconds for a whole process
+function word(i) { const s = SUBS[sub]; return s.words ? s.words[i] : s.name.toLowerCase(); }
+
+// ---------- controls
+function buildButtons() {
+  $("subs").innerHTML = Object.keys(SUBS).map(k => `<button class="pick" data-sub="${k}" aria-pressed="${k === sub}">${SUBS[k].name}</button>`).join("");
+  $("procs").innerHTML = Object.keys(PROCS).map(k => `<button class="pick" data-proc="${k}" aria-pressed="${k === proc}">${PROCS[k]}</button>`).join("");
+  document.querySelectorAll("[data-sub]").forEach(b => b.onclick = () => { stop(); setStatus(""); sub = b.dataset.sub; buildButtons(); initParticles(); render(); });
+  document.querySelectorAll("[data-proc]").forEach(b => b.onclick = () => { stop(); setStatus(""); proc = b.dataset.proc; buildButtons(); initParticles(); render(); });
+}
+function stop() { running = null; }
+$("btn-add").onclick = () => press("add");
+$("btn-remove").onclick = () => press("remove");
+$("btn-reset").onclick = () => { stop(); for (const k in store) delete store[k]; initParticles(); setStatus(""); render(); };
+$("btn-clear").onclick = () => { results = []; renderResults(); };
+
+let message = "";
+function setStatus(m) { message = m; }
+function press(dir) {
+  const s = st();
+  if (running === dir) { stop(); setStatus("Paused."); render(); return; }
+  if (dir === "add" && s.f >= 1) { stop(); setStatus(proc === "fus" ? `All the ${word(0)} has already melted. Press Remove heat to freeze it, or Reset.` : `All the ${word(1)} has already boiled. Press Remove heat to condense it, or Reset.`); render(); return; }
+  if (dir === "remove" && s.f <= 0) { stop(); setStatus(proc === "fus" ? `There is no liquid to freeze. Press Add heat first.` : `There is no gas to condense. Press Add heat first.`); render(); return; }
+  if (s.dir !== dir) { s.dir = dir; s.fStart = s.f; }
+  running = dir;
+  setStatus(dir === "add" ? (proc === "fus" ? "Melting…" : "Boiling…") : (proc === "fus" ? "Freezing…" : "Condensing…"));
+  render();
+}
+function finish() {
+  const s = st(), full = Math.abs(s.f - s.fStart) >= 1 - 1e-9;
+  const names = proc === "fus" ? ["Melting", "Freezing"] : ["Boiling", "Condensing"];
+  const pname = running === "add" ? names[0] : names[1];
+  const done = running === "add"
+    ? (proc === "fus" ? `All the ${word(0)} has melted.` : `All the ${word(1)} has boiled.`)
+    : (proc === "fus" ? `All the ${word(1)} has frozen.` : `All the ${word(2)} has condensed.`);
+  if (full) {
+    results = results.filter(r => !(r.sub === sub && r.proc === pname));
+    results.push({ sub, proc: pname, heat: L(), rel: running === "remove" });
+    renderResults();
+  }
+  setStatus(done);
+  stop();
+}
+
+// ---------- readings
+function heatNow() { const s = st(); return s.dir ? Math.abs(s.f - s.fStart) * L() : 0; }
+function stateName() {
+  const f = st().f;
+  if (proc === "fus") return f <= 0 ? "Solid" : f >= 1 ? "Liquid" : "Solid + liquid";
+  return f <= 0 ? "Liquid" : f >= 1 ? "Gas" : "Liquid + gas";
+}
+function idleHint() {
+  const f = st().f;
+  const n = SUBS[sub].name.toLowerCase(), water = sub === "water";
+  if (proc === "fus") return f <= 0 ? `${water ? "Ice" : "Solid " + n} at its melting point. Press Add heat.` : "";
+  return f <= 0 ? `${water ? "Water" : "Liquid " + n} at its boiling point. Press Add heat.` : "";
+}
+function render() {
+  const s = st(), S_ = SUBS[sub];
+  $("r-sub").textContent = S_.name;
+  $("r-temp").textContent = temp(proc === "fus" ? S_.mp : S_.bp);
+  $("r-state").textContent = stateName();
+  $("r-heatlbl").textContent = s.dir === "remove" ? "Heat released" : "Heat absorbed";
+  $("r-heat").textContent = fmt(heatNow()) + " J";
+  $("status").textContent = message || idleHint();
+  $("btn-add").setAttribute("aria-pressed", running === "add");
+  $("btn-remove").setAttribute("aria-pressed", running === "remove");
+  $("btn-add").textContent = running === "add" ? "Pause" : "Add heat";
+  $("btn-remove").textContent = running === "remove" ? "Pause" : "Remove heat";
+  drawContainer();
+}
+function renderResults() {
+  const max = Math.max(1, ...results.map(r => r.heat));
+  $("results").innerHTML = results.map(r => `<tr><td>${SUBS[r.sub].name}</td><td>${r.proc}${r.rel ? " (released)" : ""}</td><td class="num">${fmt(r.heat)}</td><td class="barcell"><div class="bar${r.rel ? " rel" : ""}" style="width:${(100 * r.heat / max).toFixed(2)}%"></div></td></tr>`).join("");
+  $("empty").hidden = results.length > 0;
+}
+
+// ---------- container drawing
+function drawContainer() {
+  const S_ = SUBS[sub], f = st().f;
+  const x0 = 50, y0 = 40, w = 150, h = 190, bottom = y0 + h;
+  let inner = "";
+  if (proc === "fus") {
+    const liqH = 110 * f;
+    if (liqH > 0.5) inner += `<rect x="${x0 + 3}" y="${bottom - 3 - liqH}" width="${w - 6}" height="${liqH}" fill="${S_.liqCol}" opacity="0.9"/>`;
+    const k = Math.sqrt(Math.max(0, 1 - f)), bw = 104 * k, bh = 104 * k;
+    if (bw > 1) {
+      inner += `<rect x="${x0 + w / 2 - bw / 2}" y="${bottom - 4 - bh}" width="${bw}" height="${bh}" rx="6" fill="${S_.solidCol}" stroke="${S_.col}" stroke-width="2"/>`;
+      inner += `<path d="M${x0 + w / 2 - bw / 2 + 8} ${bottom - 4 - bh + 10} l${bw * 0.25} ${bh * 0.2} M${x0 + w / 2} ${bottom - 4 - bh + bh * 0.45} l${bw * 0.3} ${-bh * 0.15}" stroke="${S_.col}" stroke-width="1.5" opacity="0.6" fill="none"/>`;
+    }
+  } else {
+    const liqH = 110 * (1 - f);
+    if (f > 0) inner += `<rect x="${x0 + 3}" y="${y0 + 3}" width="${w - 6}" height="${h - 6 - liqH}" fill="${S_.liqCol}" opacity="${(0.15 + 0.35 * f).toFixed(2)}"/>`;
+    for (let i = 0; i < Math.round(26 * f); i++) {
+      const px = x0 + 12 + ((i * 53) % (w - 24)), py = y0 + 14 + ((i * 37) % Math.max(10, h - liqH - 28));
+      inner += `<circle cx="${px}" cy="${py}" r="3" fill="${S_.col}" opacity="0.7"/>`;
+    }
+    if (liqH > 0.5) inner += `<rect x="${x0 + 3}" y="${bottom - 3 - liqH}" width="${w - 6}" height="${liqH}" fill="${S_.liqCol}" opacity="0.9"/>`;
+  }
+  const heaterCol = running === "add" ? "var(--heat)" : running === "remove" ? "var(--cool)" : "var(--line)";
+  const heaterTxt = running === "add" ? "Heating" : running === "remove" ? "Cooling" : "Off";
+  const t = proc === "fus" ? S_.mp : S_.bp;
+  $("cont").innerHTML = `
+    <rect x="${x0 - 6}" y="${y0 - 10}" width="${w + 12}" height="12" rx="3" fill="var(--glass)"/>
+    <text x="${x0 + w / 2}" y="${y0 - 14}" text-anchor="middle" font-size="12" fill="var(--muted)">sealed</text>
+    <g>${inner}</g>
+    <rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="8" fill="none" stroke="var(--glass)" stroke-width="3"/>
+    <line x1="${x0 + w - 22}" y1="${y0 - 10}" x2="${x0 + w - 22}" y2="${bottom - 30}" stroke="var(--fg)" stroke-width="3"/>
+    <circle cx="${x0 + w - 22}" cy="${bottom - 26}" r="5" fill="var(--heat)"/>
+    <rect x="${x0 + w + 8}" y="${y0 + 6}" width="78" height="40" rx="6" fill="var(--surface)" stroke="var(--fg)" stroke-width="2"/>
+    <text x="${x0 + w + 47}" y="${y0 + 32}" text-anchor="middle" font-size="16" font-weight="700" fill="var(--fg)" font-family="IBM Plex Mono, monospace">${temp(t)}</text>
+    <line x1="${x0 + w - 22}" y1="${y0 - 6}" x2="${x0 + w + 8}" y2="${y0 + 26}" stroke="var(--fg)" stroke-width="1.5"/>
+    <rect x="${x0 - 10}" y="${bottom + 10}" width="${w + 20}" height="18" rx="5" fill="${heaterCol}"/>
+    <text x="${x0 + w / 2}" y="${bottom + 46}" text-anchor="middle" font-size="14" fill="var(--muted)">Heater: ${heaterTxt}</text>`;
+}
+
+// ---------- particle view (a small, stable particle model: solid = springs to lattice sites, liquid = close and moving, gas = fast and far apart)
+let P = [];
+const SITES = [];
+for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) SITES.push({ x: CX - 75 + c * S, y: CY + 90 - r * S, r, c });
+const MELT_ORDER = SITES.map((s, i) => i).sort((a, b) => (SITES[b].r - SITES[a].r) || (Math.sin(a * 12.9898) - Math.sin(b * 12.9898)));
+function initParticles() {
+  const f = st().f;
+  P = SITES.map((s, i) => ({ i, x: s.x + (Math.random() - 0.5) * 2, y: s.y + (Math.random() - 0.5) * 2, vx: 0, vy: 0, state: proc === "fus" ? "solid" : "liquid" }));
+  if (proc === "fus") {
+    const n = Math.round(f * N);
+    for (let k = 0; k < n; k++) P[MELT_ORDER[k]].state = "liquid";
+  } else {
+    const n = Math.round(f * N);
+    for (let k = 0; k < n; k++) { const p = P[MELT_ORDER[k]]; p.state = "gas"; p.y = CY - 60 + Math.random() * 60; p.x = CX - 90 + Math.random() * 180; }
+  }
+}
+function syncStates() {
+  const target = Math.round(st().f * N);
+  if (proc === "fus") {
+    P.forEach(p => p.state = "solid");
+    for (let k = 0; k < target; k++) P[MELT_ORDER[k]].state = "liquid";
+  } else {
+    let gas = P.filter(p => p.state === "gas");
+    while (gas.length < target) {                    // the particle at the top of the liquid leaves first
+      const liq = P.filter(p => p.state !== "gas").sort((a, b) => a.y - b.y)[0];
+      liq.state = "gas"; liq.vy = -160; liq.vx = (Math.random() - 0.5) * 160; gas.push(liq);
+    }
+    while (gas.length > target) { const g = gas.pop(); g.state = "liquid"; }
+  }
+}
+function step(dt) {
+  for (const p of P) {
+    let ax = 0, ay = 0;
+    if (p.state === "solid") {
+      const s = SITES[p.i];
+      ax = 260 * (s.x - p.x) - 9 * p.vx; ay = 260 * (s.y - p.y) - 9 * p.vy;
+      p.vx += (Math.random() - 0.5) * 30; p.vy += (Math.random() - 0.5) * 30;
+    } else if (p.state === "liquid") { ay = 320; }
+    p.ax = ax; p.ay = ay;
+  }
+  for (let a = 0; a < N; a++) for (let b = a + 1; b < N; b++) {
+    const p = P[a], q = P[b];
+    if (p.state === "solid" && q.state === "solid") continue;
+    const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 0.01, nx = dx / d, ny = dy / d;
+    let F = 0;
+    if (d < 2 * R + 3) F = -900 * (2 * R + 3 - d);
+    else if (d < 2 * R + 14 && p.state !== "gas" && q.state !== "gas") F = 80 * (d - 2 * R - 3);   // attraction keeps a liquid together
+    if (p.state !== "solid") { p.ax += F * nx; p.ay += F * ny; }
+    if (q.state !== "solid") { q.ax -= F * nx; q.ay -= F * ny; }
+  }
+  for (const p of P) {
+    p.vx += p.ax * dt; p.vy += p.ay * dt;
+    if (p.state !== "solid") {                       // thermostat: liquid slow, gas fast
+      const sp = Math.hypot(p.vx, p.vy) || 0.01, target = p.state === "gas" ? 230 : 55;
+      const k = 1 + 0.08 * (target / sp - 1);
+      p.vx *= k; p.vy *= k;
+      if (p.state === "liquid") { p.vx += (Math.random() - 0.5) * 40; p.vy += (Math.random() - 0.5) * 40; }
+    }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    const dx = p.x - CX, dy = p.y - CY, d = Math.hypot(dx, dy), rw = RC - R - 2;
+    if (d > rw) {
+      const nx = dx / d, ny = dy / d;
+      p.x = CX + nx * rw; p.y = CY + ny * rw;
+      const vn = p.vx * nx + p.vy * ny;
+      if (vn > 0) { p.vx -= 2 * vn * nx; p.vy -= 2 * vn * ny; }
+    }
+  }
+}
+function drawParticles() {
+  const col = SUBS[sub].col;
+  let bonds = "";
+  for (let a = 0; a < N; a++) for (let b = a + 1; b < N; b++) {
+    const p = P[a], q = P[b];
+    if (p.state === "gas" || q.state === "gas") continue;
+    let show = false;
+    if (p.state === "solid" && q.state === "solid") { const s = SITES[p.i], t = SITES[q.i]; show = Math.abs(s.r - t.r) + Math.abs(s.c - t.c) === 1; }
+    else show = Math.hypot(q.x - p.x, q.y - p.y) < 2 * R + 9;
+    if (show) bonds += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}" stroke="var(--fg)" stroke-width="2.5" opacity="0.55"/>`;
+  }
+  const dots = P.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R}" fill="${col}" stroke="var(--fg)" stroke-width="1"/>`).join("");
+  $("part").innerHTML = `<circle cx="${CX}" cy="${CY}" r="${RC}" fill="var(--bg)" stroke="var(--glass)" stroke-width="2"/>${bonds}${dots}
+    <text x="${CX}" y="${CY + RC + 14}" text-anchor="middle" font-size="12" fill="var(--muted)">lines = bonds between particles</text>`;
+}
+
+// ---------- loop
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (running) {
+    const s = st(), df = dt / duration();
+    s.f = running === "add" ? Math.min(1, s.f + df) : Math.max(0, s.f - df);
+    if ((running === "add" && s.f >= 1) || (running === "remove" && s.f <= 0)) finish();
+    render();
+  }
+  syncStates();
+  for (let i = 0; i < 3; i++) step(dt / 3);
+  drawParticles();
+  requestAnimationFrame(frame);
+}
+buildButtons(); initParticles(); render(); renderResults();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
